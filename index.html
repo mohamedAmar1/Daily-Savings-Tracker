@@ -1,0 +1,1654 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مُدّخر | Daily Savings Tracker</title>
+    <!-- خط Cairo من Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Cairo', 'sans-serif'] },
+                    colors: {
+                        primary: {
+                            50: '#ecfdf5',
+                            100: '#d1fae5',
+                            500: '#10b981',
+                            600: '#059669',
+                            700: '#047857',
+                            800: '#065f46',
+                            900: '#064e3b',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome للأيقونات -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js للرسوم البيانية -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Canvas Confetti للمؤثرات الاحتفالية -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        body { font-family: 'Cairo', sans-serif; transition: background-color 0.3s, color 0.3s; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .dark ::-webkit-scrollbar-thumb { background: #475569; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-100 min-h-screen flex flex-col md:flex-row antialiased">
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed top-5 left-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-700 text-center animate-scale-up">
+            <div class="w-14 h-14 bg-red-100 dark:bg-red-900/40 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 id="confirm-title" class="text-lg font-bold mb-2">تأكيد الإجراء</h3>
+            <p id="confirm-msg" class="text-sm text-slate-500 dark:text-slate-400 mb-6">هل أنت متأكد من المتابعة؟ لا يمكن التراجع عن هذا الإجراء.</p>
+            <div class="flex gap-3 justify-center">
+                <button id="confirm-btn-yes" class="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-semibold transition">نعم، متابعة</button>
+                <button id="confirm-btn-no" class="px-5 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-xl text-sm font-semibold transition">إلغاء</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Transaction Modal -->
+    <div id="edit-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-700">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold">تعديل عملية الادخار</h3>
+                <button onclick="closeEditModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <form id="edit-form" class="space-y-4">
+                <input type="hidden" id="edit-id">
+                <div>
+                    <label class="block text-xs font-semibold mb-1">المبلغ</label>
+                    <input type="number" step="any" min="0" id="edit-amount" required class="w-full px-3 py-2 border rounded-xl dark:bg-slate-700 dark:border-slate-600 focus:ring-2 focus:ring-primary-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold mb-1">التاريخ</label>
+                    <input type="date" id="edit-date" required class="w-full px-3 py-2 border rounded-xl dark:bg-slate-700 dark:border-slate-600 focus:ring-2 focus:ring-primary-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold mb-1">النوع</label>
+                    <select id="edit-category" class="w-full px-3 py-2 border rounded-xl dark:bg-slate-700 dark:border-slate-600 focus:ring-2 focus:ring-primary-500 outline-none">
+                        <option value="عام">توفير عام</option>
+                        <option value="طوارئ">صندوق الطوارئ</option>
+                        <option value="استثمار">استثمار</option>
+                        <option value="تحدي">تحدي ادخار</option>
+                        <option value="أخرى">أخرى</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold mb-1">الوصف</label>
+                    <input type="text" id="edit-desc" class="w-full px-3 py-2 border rounded-xl dark:bg-slate-700 dark:border-slate-600 focus:ring-2 focus:ring-primary-500 outline-none">
+                </div>
+                <div class="flex gap-2 pt-2">
+                    <button type="submit" class="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-bold py-2 rounded-xl transition">حفظ التغييرات</button>
+                    <button type="button" onclick="closeEditModal()" class="px-4 py-2 bg-slate-200 dark:bg-slate-700 rounded-xl font-medium">إلغاء</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Sidebar Navigation (Desktop) -->
+    <aside class="hidden md:flex flex-col w-64 bg-white dark:bg-slate-800 border-l border-slate-200 dark:border-slate-700 min-h-screen p-5 justify-between">
+        <div>
+            <!-- Logo -->
+            <div class="flex items-center gap-3 px-2 mb-8">
+                <div class="w-11 h-11 bg-primary-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-primary-500/30 text-xl font-bold">
+                    <i class="fa-solid fa-piggy-bank"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-black text-slate-800 dark:text-white tracking-wide">مُدّخِــر</h1>
+                    <p class="text-xs text-primary-600 dark:text-primary-400 font-semibold">إدارة المدخرات الذكية</p>
+                </div>
+            </div>
+
+            <!-- Navigation Links -->
+            <nav class="space-y-1.5" id="desktop-nav">
+                <button onclick="switchView('dashboard')" data-tab="dashboard" class="nav-btn w-full flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-sm transition-all text-primary-700 bg-primary-50 dark:bg-primary-950/60 dark:text-primary-400">
+                    <i class="fa-solid fa-gauge-high w-5 text-center text-base"></i> لوحة التحكم
+                </button>
+                <button onclick="switchView('savings')" data-tab="savings" class="nav-btn w-full flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-sm transition-all text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700/50">
+                    <i class="fa-solid fa-circle-plus w-5 text-center text-base"></i> تسجيل ادخار
+                </button>
+                <button onclick="switchView('history')" data-tab="history" class="nav-btn w-full flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-sm transition-all text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700/50">
+                    <i class="fa-solid fa-clock-rotate-left w-5 text-center text-base"></i> سجل المعاملات
+                </button>
+                <button onclick="switchView('goals')" data-tab="goals" class="nav-btn w-full flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-sm transition-all text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700/50">
+                    <i class="fa-solid fa-bullseye w-5 text-center text-base"></i> الأهداف المالية
+                </button>
+                <button onclick="switchView('statistics')" data-tab="statistics" class="nav-btn w-full flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-sm transition-all text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700/50">
+                    <i class="fa-solid fa-chart-pie w-5 text-center text-base"></i> الإحصائيات
+                </button>
+                <button onclick="switchView('calculator')" data-tab="calculator" class="nav-btn w-full flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-sm transition-all text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700/50">
+                    <i class="fa-solid fa-calculator w-5 text-center text-base"></i> حاسبة الادخار
+                </button>
+                <button onclick="switchView('settings')" data-tab="settings" class="nav-btn w-full flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-sm transition-all text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700/50">
+                    <i class="fa-solid fa-gear w-5 text-center text-base"></i> الإعدادات
+                </button>
+            </nav>
+        </div>
+
+        <!-- Quick Theme & Currency indicator -->
+        <div class="bg-slate-50 dark:bg-slate-700/40 p-4 rounded-2xl border border-slate-200/70 dark:border-slate-700">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">العملة الحالية</span>
+                <span class="text-xs font-bold px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300" id="aside-currency">EGP</span>
+            </div>
+            <button onclick="toggleTheme()" class="w-full flex items-center justify-center gap-2 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-xl transition border border-slate-200 dark:border-slate-600 shadow-sm">
+                <i class="fa-solid fa-moon dark:hidden"></i>
+                <i class="fa-solid fa-sun hidden dark:inline"></i>
+                <span>تبديل المظهر</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col min-w-0 pb-20 md:pb-8 overflow-y-auto">
+
+        <!-- Top Header for Mobile & Quick Actions -->
+        <header class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-4 sticky top-0 z-30 flex items-center justify-between">
+            <div class="flex items-center gap-3 md:hidden">
+                <div class="w-9 h-9 bg-primary-600 text-white rounded-xl flex items-center justify-center font-bold">
+                    <i class="fa-solid fa-piggy-bank"></i>
+                </div>
+                <h1 class="text-lg font-bold">مُدّخِــر</h1>
+            </div>
+            <div class="hidden md:block">
+                <h2 id="page-title" class="text-lg font-bold text-slate-800 dark:text-white">لوحة التحكم</h2>
+            </div>
+            <div class="flex items-center gap-3">
+                <button onclick="switchView('savings')" class="bg-primary-600 hover:bg-primary-700 text-white px-3.5 py-1.5 rounded-xl text-sm font-semibold flex items-center gap-2 shadow-sm transition">
+                    <i class="fa-solid fa-plus text-xs"></i>
+                    <span>إيداع جديد</span>
+                </button>
+                <button onclick="toggleTheme()" class="p-2 md:hidden text-slate-500 dark:text-slate-400 text-lg">
+                    <i class="fa-solid fa-moon dark:hidden"></i>
+                    <i class="fa-solid fa-sun hidden dark:inline"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Dynamic Container for Sections -->
+        <div class="p-4 md:p-8 max-w-7xl mx-auto w-full">
+
+            <!-- 1. DASHBOARD VIEW -->
+            <section id="view-dashboard" class="space-y-6">
+                <!-- KPI Cards Grid -->
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <!-- Total Savings -->
+                    <div class="col-span-2 sm:col-span-1 bg-gradient-to-br from-primary-600 to-primary-700 text-white p-5 rounded-2xl shadow-lg shadow-primary-600/20 relative overflow-hidden">
+                        <div class="absolute -left-3 -bottom-3 text-white/10 text-7xl"><i class="fa-solid fa-vault"></i></div>
+                        <p class="text-xs font-semibold text-emerald-100">إجمالي المدخرات</p>
+                        <h3 class="text-2xl lg:text-3xl font-extrabold mt-2 tracking-tight" id="dash-total">0.00</h3>
+                        <span class="text-xs font-medium text-emerald-100 mt-2 block" id="dash-total-currency">جنيه مصري</span>
+                    </div>
+                    <!-- Today Savings -->
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-sm relative">
+                        <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+                            <span class="text-xs font-semibold">ادخار اليوم</span>
+                            <span class="p-2 bg-emerald-50 dark:bg-emerald-950/60 text-primary-600 rounded-xl text-xs"><i class="fa-solid fa-calendar-day"></i></span>
+                        </div>
+                        <h4 class="text-xl font-bold text-slate-800 dark:text-white" id="dash-today">0.00</h4>
+                        <p class="text-[11px] text-slate-400 mt-1">تحديث آني لليوم الحالي</p>
+                    </div>
+                    <!-- This Week -->
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-sm">
+                        <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+                            <span class="text-xs font-semibold">هذا الأسبوع</span>
+                            <span class="p-2 bg-blue-50 dark:bg-blue-950/60 text-blue-600 rounded-xl text-xs"><i class="fa-solid fa-calendar-week"></i></span>
+                        </div>
+                        <h4 class="text-xl font-bold text-slate-800 dark:text-white" id="dash-week">0.00</h4>
+                        <p class="text-[11px] text-slate-400 mt-1">خلال الـ 7 أيام الأخيرة</p>
+                    </div>
+                    <!-- This Month -->
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-sm">
+                        <div class="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+                            <span class="text-xs font-semibold">هذا الشهر</span>
+                            <span class="p-2 bg-purple-50 dark:bg-purple-950/60 text-purple-600 rounded-xl text-xs"><i class="fa-solid fa-calendar"></i></span>
+                        </div>
+                        <h4 class="text-xl font-bold text-slate-800 dark:text-white" id="dash-month">0.00</h4>
+                        <p class="text-[11px] text-slate-400 mt-1">منذ بداية الشهر الحالي</p>
+                    </div>
+                </div>
+
+                <!-- Secondary Stats Grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200/80 dark:border-slate-700 flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 flex items-center justify-center font-bold">
+                            <i class="fa-solid fa-chart-line"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">متوسط الادخار اليومي</p>
+                            <h5 class="text-sm font-bold text-slate-800 dark:text-white" id="dash-avg">0.00</h5>
+                        </div>
+                    </div>
+                    <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200/80 dark:border-slate-700 flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-600 flex items-center justify-center font-bold">
+                            <i class="fa-solid fa-fire"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">أيام الادخار الفعلي</p>
+                            <h5 class="text-sm font-bold text-slate-800 dark:text-white"><span id="dash-days">0</span> يوم</h5>
+                        </div>
+                    </div>
+                    <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200/80 dark:border-slate-700 flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 flex items-center justify-center font-bold">
+                            <i class="fa-solid fa-bullseye"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">إنجاز الأهداف الكلية</p>
+                            <h5 class="text-sm font-bold text-slate-800 dark:text-white" id="dash-goal-pct">0%</h5>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Evolution Chart -->
+                <div class="bg-white dark:bg-slate-800 p-5 md:p-6 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-sm">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                        <div>
+                            <h3 class="text-base font-bold text-slate-800 dark:text-white">تطور الادخار اليومي</h3>
+                            <p class="text-xs text-slate-400">متابعة المبالغ المدخرة عبر الزمن</p>
+                        </div>
+                        <span class="text-xs font-semibold px-2.5 py-1 bg-slate-100 dark:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-300 self-start">آخر 14 يوم نشط</span>
+                    </div>
+                    <div class="h-64 md:h-72 w-full">
+                        <canvas id="evolutionChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Recent Activities & Quick Goals preview -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Recent 5 transactions -->
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-sm">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-sm font-bold">آخر عمليات الادخار</h3>
+                            <button onclick="switchView('history')" class="text-xs font-bold text-primary-600 dark:text-primary-400 hover:underline">عرض الكل</button>
+                        </div>
+                        <div id="dash-recent-list" class="space-y-3">
+                            <!-- Injected by JS -->
+                        </div>
+                    </div>
+                    <!-- Financial Goals Progress -->
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-sm">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-sm font-bold">أحدث الأهداف المالية</h3>
+                            <button onclick="switchView('goals')" class="text-xs font-bold text-primary-600 dark:text-primary-400 hover:underline">إدارة الأهداف</button>
+                        </div>
+                        <div id="dash-goals-list" class="space-y-4">
+                            <!-- Injected by JS -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. DAILY SAVINGS FORM VIEW -->
+            <section id="view-savings" class="hidden max-w-2xl mx-auto">
+                <div class="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100 dark:border-slate-700">
+                        <div class="w-12 h-12 bg-primary-100 dark:bg-primary-950/80 text-primary-600 rounded-2xl flex items-center justify-center text-xl">
+                            <i class="fa-solid fa-hand-holding-dollar"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold">تسجيل ادخار جديد</h3>
+                            <p class="text-xs text-slate-400">أضف المبلغ الذي ادخرته اليوم ليتم تحديث إحصائياتك فوراً</p>
+                        </div>
+                    </div>
+
+                    <form id="savings-form" class="space-y-5">
+                        <div>
+                            <label class="block text-xs font-bold mb-2">المبلغ المالي <span class="text-red-500">*</span></label>
+                            <div class="relative">
+                                <input type="number" step="any" min="0" id="save-amount" required placeholder="0.00" class="w-full pl-14 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none text-lg font-bold">
+                                <span class="absolute left-4 top-3.5 text-xs font-bold text-slate-400 currency-label">EGP</span>
+                            </div>
+                            <span class="text-[11px] text-slate-400 mt-1 block">يمكنك تسجيل مبلغ 0 إذا لم تدخر شيئاً اليوم للتوثيق دون احتسابه كيوم ادخار نشط.</span>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold mb-2">تاريخ العملية <span class="text-red-500">*</span></label>
+                                <input type="date" id="save-date" required class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold mb-2">نوع الادخار / التصنيف</label>
+                                <select id="save-category" class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none text-sm">
+                                    <option value="عام">توفير عام</option>
+                                    <option value="طوارئ">صندوق الطوارئ</option>
+                                    <option value="استثمار">استثمار</option>
+                                    <option value="تحدي">تحدي ادخار</option>
+                                    <option value="أخرى">أخرى</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold mb-2">ربط بهدف مالي (اختياري)</label>
+                            <select id="save-goal-id" class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none text-sm">
+                                <option value="">-- بدون ربط بهدف --</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold mb-2">وصف أو ملاحظة (اختياري)</label>
+                            <input type="text" id="save-desc" placeholder="مثال: فائض مصاريف اليوم، مكافأة عمل..." class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none text-sm">
+                        </div>
+
+                        <button type="submit" class="w-full py-3.5 bg-primary-600 hover:bg-primary-700 active:scale-[0.99] text-white rounded-xl font-bold text-sm shadow-lg shadow-primary-600/30 transition flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-floppy-disk"></i>
+                            <span>حفظ عملية الادخار</span>
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- 3. SAVINGS HISTORY VIEW -->
+            <section id="view-history" class="hidden space-y-4">
+                <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <div class="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between mb-4">
+                        <div class="relative flex-1">
+                            <i class="fa-solid fa-magnifying-glass absolute right-3.5 top-3.5 text-slate-400 text-sm"></i>
+                            <input type="text" id="history-search" placeholder="بحث بالوصف أو التصنيف..." class="w-full pr-10 pl-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none">
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <input type="date" id="history-date-filter" class="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none">
+                            <select id="history-cat-filter" class="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none">
+                                <option value="all">كل التصنيفات</option>
+                                <option value="عام">عام</option>
+                                <option value="طوارئ">طوارئ</option>
+                                <option value="استثمار">استثمار</option>
+                                <option value="تحدي">تحدي</option>
+                                <option value="أخرى">أخرى</option>
+                            </select>
+                            <button onclick="clearHistoryFilters()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-xl text-xs font-semibold">إعادة تعيين</button>
+                        </div>
+                    </div>
+
+                    <!-- Transactions Table -->
+                    <div class="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-700/60">
+                        <table class="w-full text-right text-sm">
+                            <thead class="bg-slate-50 dark:bg-slate-700/40 text-xs font-bold text-slate-500 dark:text-slate-400">
+                                <tr>
+                                    <th class="p-3.5">التاريخ</th>
+                                    <th class="p-3.5">المبلغ</th>
+                                    <th class="p-3.5">التصنيف</th>
+                                    <th class="p-3.5">الوصف</th>
+                                    <th class="p-3.5 text-center">الإجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-table-body" class="divide-y divide-slate-100 dark:divide-slate-700/40">
+                                <!-- Dynamic Rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Empty State -->
+                    <div id="history-empty" class="hidden text-center py-12">
+                        <div class="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto text-slate-400 text-2xl mb-3">
+                            <i class="fa-regular fa-folder-open"></i>
+                        </div>
+                        <h4 class="text-sm font-bold text-slate-600 dark:text-slate-300">لا توجد عمليات ادخار مسجلة</h4>
+                        <p class="text-xs text-slate-400 mt-1">ابدأ بإضافة أول عملية ادخار لك اليوم!</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4. FINANCIAL GOALS VIEW -->
+            <section id="view-goals" class="hidden space-y-6">
+                <!-- Add Goal Bar -->
+                <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h3 class="text-base font-bold">الأهداف المالية المخططة</h3>
+                        <p class="text-xs text-slate-400">حدد أهدافك وراقب نسبة تقدمك خطوة بخطوة</p>
+                    </div>
+                    <button onclick="openNewGoalModal()" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 self-start md:self-auto transition shadow-sm">
+                        <i class="fa-solid fa-flag"></i>
+                        <span>إنشاء هدف جديد</span>
+                    </button>
+                </div>
+
+                <!-- Goals Grid -->
+                <div id="goals-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    <!-- Dynamic Goal Cards -->
+                </div>
+
+                <div id="goals-empty" class="hidden text-center py-16 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
+                    <div class="w-16 h-16 bg-emerald-50 dark:bg-emerald-950/40 text-primary-600 rounded-full flex items-center justify-center mx-auto text-2xl mb-3">
+                        <i class="fa-solid fa-bullseye"></i>
+                    </div>
+                    <h4 class="text-base font-bold">لا توجد أهداف مالية نشطة</h4>
+                    <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">أنشئ هدفاً جديداً مثل (شراء سيارة، لابتوب، صندوق طوارئ) لتخصيص مدخراتك له.</p>
+                </div>
+
+                <!-- Modal Create Goal -->
+                <div id="goal-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+                    <div class="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-700">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-bold">إنشاء هدف مالي جديد</h3>
+                            <button onclick="closeGoalModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        <form id="goal-form" class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-semibold mb-1">اسم الهدف <span class="text-red-500">*</span></label>
+                                <input type="text" id="goal-name" required placeholder="مثال: شراء لابتوب جديد" class="w-full px-3 py-2.5 border rounded-xl dark:bg-slate-700 dark:border-slate-600 text-sm focus:ring-2 focus:ring-primary-500 outline-none">
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-semibold mb-1">المبلغ المستهدف <span class="text-red-500">*</span></label>
+                                    <input type="number" step="any" min="1" id="goal-target" required placeholder="10000" class="w-full px-3 py-2.5 border rounded-xl dark:bg-slate-700 dark:border-slate-600 text-sm focus:ring-2 focus:ring-primary-500 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold mb-1">المبلغ الموفر حالياً</label>
+                                    <input type="number" step="any" min="0" id="goal-saved" placeholder="0" class="w-full px-3 py-2.5 border rounded-xl dark:bg-slate-700 dark:border-slate-600 text-sm focus:ring-2 focus:ring-primary-500 outline-none">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-semibold mb-1">تاريخ البداية</label>
+                                    <input type="date" id="goal-start-date" required class="w-full px-3 py-2.5 border rounded-xl dark:bg-slate-700 dark:border-slate-600 text-xs focus:ring-2 focus:ring-primary-500 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold mb-1">الموعد المستهدف</label>
+                                    <input type="date" id="goal-target-date" required class="w-full px-3 py-2.5 border rounded-xl dark:bg-slate-700 dark:border-slate-600 text-xs focus:ring-2 focus:ring-primary-500 outline-none">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold mb-1">أيقونة توضيحية</label>
+                                <select id="goal-icon" class="w-full px-3 py-2.5 border rounded-xl dark:bg-slate-700 dark:border-slate-600 text-sm focus:ring-2 focus:ring-primary-500 outline-none">
+                                    <option value="fa-laptop">لابتوب / إلكترونيات</option>
+                                    <option value="fa-car">سيارة / نقل</option>
+                                    <option value="fa-house">شقة / منزل</option>
+                                    <option value="fa-plane">سفر وسياحة</option>
+                                    <option value="fa-graduation-cap">تعليم ودراسة</option>
+                                    <option value="fa-heart-pulse">صحة وطوارئ</option>
+                                    <option value="fa-star">هدف شخصي</option>
+                                </select>
+                            </div>
+                            <div class="flex gap-2 pt-3">
+                                <button type="submit" class="flex-1 py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl text-sm transition">حفظ الهدف</button>
+                                <button type="button" onclick="closeGoalModal()" class="px-4 py-2.5 bg-slate-200 dark:bg-slate-700 rounded-xl text-sm">إلغاء</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 5. STATISTICS & REPORTS VIEW -->
+            <section id="view-statistics" class="hidden space-y-6">
+                <!-- Filter bar -->
+                <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-4">
+                    <h3 class="text-base font-bold">التقارير التحليلية</h3>
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs font-semibold text-slate-500">الفترة:</label>
+                        <select id="stat-range" onchange="renderStats()" class="px-3 py-1.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl text-xs font-semibold outline-none">
+                            <option value="all">كل الأوقات</option>
+                            <option value="this_month">هذا الشهر</option>
+                            <option value="last_3_months">آخر 3 أشهر</option>
+                            <option value="this_year">هذا العام</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Deep Stats Cards -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200/80 dark:border-slate-700">
+                        <span class="text-xs text-slate-400 font-semibold">إجمالي ادخار الفترة</span>
+                        <h4 class="text-lg font-bold text-slate-800 dark:text-white mt-1" id="stat-period-total">0.00</h4>
+                    </div>
+                    <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200/80 dark:border-slate-700">
+                        <span class="text-xs text-slate-400 font-semibold">أعلى يوم ادخار</span>
+                        <h4 class="text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-1" id="stat-max-day">0.00</h4>
+                    </div>
+                    <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200/80 dark:border-slate-700">
+                        <span class="text-xs text-slate-400 font-semibold">أقل يوم ادخار</span>
+                        <h4 class="text-lg font-bold text-amber-600 dark:text-amber-400 mt-1" id="stat-min-day">0.00</h4>
+                    </div>
+                    <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200/80 dark:border-slate-700">
+                        <span class="text-xs text-slate-400 font-semibold">المتوسط اليومي للفترة</span>
+                        <h4 class="text-lg font-bold text-blue-600 dark:text-blue-400 mt-1" id="stat-avg-day">0.00</h4>
+                    </div>
+                </div>
+
+                <!-- Charts Comparison -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Monthly Bar Chart -->
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-sm">
+                        <h4 class="text-sm font-bold mb-3">مقارنة الادخار بين الشهور</h4>
+                        <div class="h-64">
+                            <canvas id="monthlyChart"></canvas>
+                        </div>
+                    </div>
+                    <!-- Category Doughnut Chart -->
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-sm">
+                        <h4 class="text-sm font-bold mb-3">توزيع المدخرات حسب التصنيف</h4>
+                        <div class="h-64 flex items-center justify-center">
+                            <canvas id="categoryChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 6. SMART SAVINGS CALCULATOR VIEW -->
+            <section id="view-calculator" class="hidden max-w-3xl mx-auto space-y-6">
+                <div class="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <div class="text-center max-w-md mx-auto mb-8">
+                        <div class="w-12 h-12 bg-primary-100 dark:bg-primary-950/80 text-primary-600 rounded-2xl flex items-center justify-center text-xl mx-auto mb-2">
+                            <i class="fa-solid fa-calculator"></i>
+                        </div>
+                        <h3 class="text-xl font-bold">حاسبة الادخار الذكية</h3>
+                        <p class="text-xs text-slate-400 mt-1">خطط لمستقبلك المالي واعرف بالتحديد كم تحتاج لتصل لأهدافك</p>
+                    </div>
+
+                    <!-- Calculator Tabs -->
+                    <div class="flex rounded-xl bg-slate-100 dark:bg-slate-700/60 p-1 mb-6">
+                        <button onclick="setCalcMode('days')" id="btn-calc-days" class="flex-1 py-2 rounded-lg text-xs font-bold transition bg-white dark:bg-slate-800 shadow-sm text-primary-600 dark:text-primary-400">حساب عدد الأيام المطلوبة</button>
+                        <button onclick="setCalcMode('amount')" id="btn-calc-amount" class="flex-1 py-2 rounded-lg text-xs font-bold transition text-slate-500 hover:text-slate-800 dark:text-slate-400">حساب الادخار اليومي المطلوب</button>
+                    </div>
+
+                    <!-- Mode A: Target + Daily Amount -> Days needed -->
+                    <div id="calc-mode-days" class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold mb-1">المبلغ المطلوب الوصول إليه</label>
+                                <input type="number" id="calc-a-target" placeholder="مثال: 50000" class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold mb-1">المبلغ الذي تستطيع ادخاره يومياً</label>
+                                <input type="number" id="calc-a-daily" placeholder="مثال: 100" class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none">
+                            </div>
+                        </div>
+                        <button onclick="runCalculatorA()" class="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold text-sm transition">احسب المدة المطلوبة</button>
+                        <div id="calc-res-a" class="hidden p-4 rounded-xl bg-primary-50 dark:bg-primary-950/40 border border-primary-200 dark:border-primary-800 text-center animate-fade">
+                            <p class="text-xs text-slate-500 dark:text-slate-300">أنت بحاجة إلى ادخار منتظم لمدة:</p>
+                            <h4 class="text-2xl font-black text-primary-700 dark:text-primary-300 my-1"><span id="calc-out-days">0</span> يوم</h4>
+                            <p class="text-xs text-slate-500" id="calc-out-months-note"></p>
+                        </div>
+                    </div>
+
+                    <!-- Mode B: Target + Days/Months -> Daily amount needed -->
+                    <div id="calc-mode-amount" class="space-y-4 hidden">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold mb-1">المبلغ المستهدف الوصول إليه</label>
+                                <input type="number" id="calc-b-target" placeholder="مثال: 20000" class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold mb-1">المدة الزمنية المتاحة (بالأيام)</label>
+                                <input type="number" id="calc-b-days" placeholder="مثال: 90" class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none">
+                            </div>
+                        </div>
+                        <button onclick="runCalculatorB()" class="w-full py-3 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold text-sm transition">احسب القسط اليومي</button>
+                        <div id="calc-res-b" class="hidden p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-center animate-fade">
+                            <p class="text-xs text-slate-500 dark:text-slate-300">عليك ادخار مبلغ يومي قدره:</p>
+                            <h4 class="text-2xl font-black text-emerald-700 dark:text-emerald-300 my-1"><span id="calc-out-daily">0.00</span> <span class="currency-label">EGP</span></h4>
+                            <p class="text-xs text-slate-500">لتحقيق هدفك خلال الموعد المحدد.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 7. SETTINGS VIEW -->
+            <section id="view-settings" class="hidden max-w-2xl mx-auto space-y-6">
+                <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-6">
+                    <h3 class="text-lg font-bold border-b pb-3 dark:border-slate-700">تفضيلات التطبيق</h3>
+
+                    <!-- Currency setting -->
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h5 class="text-sm font-bold">العملة الافتراضية</h5>
+                            <p class="text-xs text-slate-400">تغيير رمز العملة المعروضة في جميع الشاشات</p>
+                        </div>
+                        <select id="setting-currency" onchange="changeCurrency(this.value)" class="px-3 py-2 bg-slate-50 dark:bg-slate-900 border rounded-xl text-xs font-bold outline-none">
+                            <option value="EGP">EGP - جنيه مصري</option>
+                            <option value="SAR">SAR - ريال سعودي</option>
+                            <option value="AED">AED - درهم إماراتي</option>
+                            <option value="USD">USD - دولار أمريكي</option>
+                            <option value="EUR">EUR - يورو</option>
+                            <option value="KWD">KWD - دينار كويتي</option>
+                        </select>
+                    </div>
+
+                    <!-- Theme toggle -->
+                    <div class="flex items-center justify-between pt-3 border-t dark:border-slate-700">
+                        <div>
+                            <h5 class="text-sm font-bold">المظهر (Dark / Light)</h5>
+                            <p class="text-xs text-slate-400">التبديل بين الوضع المظلم والمريح للعين أو الفاتح</p>
+                        </div>
+                        <button onclick="toggleTheme()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-xl text-xs font-bold transition flex items-center gap-2">
+                            <i class="fa-solid fa-circle-half-stroke"></i>
+                            <span>تبديل الوضع</span>
+                        </button>
+                    </div>
+
+                    <!-- Export Data -->
+                    <div class="pt-3 border-t dark:border-slate-700 space-y-3">
+                        <div>
+                            <h5 class="text-sm font-bold">تصدير واستيراد البيانات</h5>
+                            <p class="text-xs text-slate-400">بياناتك محفوظة بأمان على جهازك الحالي، يمكنك تصديرها كملف Excel/CSV أو نسخة احتياطية</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="exportToCSV()" class="px-4 py-2 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 rounded-xl text-xs font-bold transition flex items-center gap-2 border border-emerald-200 dark:border-emerald-800">
+                                <i class="fa-solid fa-file-excel"></i>
+                                <span>تصدير كملف CSV (Excel)</span>
+                            </button>
+                            <button onclick="exportBackupJSON()" class="px-4 py-2 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100 rounded-xl text-xs font-bold transition flex items-center gap-2 border border-blue-200 dark:border-blue-800">
+                                <i class="fa-solid fa-download"></i>
+                                <span>حفظ نسخة احتياطية (JSON)</span>
+                            </button>
+                            <label class="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2">
+                                <i class="fa-solid fa-upload"></i>
+                                <span>استعادة نسخة احتياطية</span>
+                                <input type="file" id="import-json-file" accept=".json" onchange="importBackupJSON(event)" class="hidden">
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Reset Data Area -->
+                    <div class="pt-3 border-t border-red-100 dark:border-red-900/30">
+                        <h5 class="text-sm font-bold text-red-600">منطقة الحذف الكلي</h5>
+                        <p class="text-xs text-slate-400 mb-3">حذف جميع العمليات والأهداف والبدء من الصفر.</p>
+                        <button onclick="confirmResetAll()" class="px-4 py-2 bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400 hover:bg-red-200 rounded-xl text-xs font-bold transition">
+                            مسح جميع بيانات التطبيق
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Bottom Navigation Bar for Mobile -->
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-t border-slate-200 dark:border-slate-700 flex justify-around p-2 z-40">
+        <button onclick="switchView('dashboard')" data-tab="dashboard" class="mobile-nav-btn flex flex-col items-center py-1 px-2 text-primary-600">
+            <i class="fa-solid fa-gauge-high text-lg"></i>
+            <span class="text-[10px] font-bold mt-1">الرئيسية</span>
+        </button>
+        <button onclick="switchView('savings')" data-tab="savings" class="mobile-nav-btn flex flex-col items-center py-1 px-2 text-slate-400">
+            <i class="fa-solid fa-circle-plus text-lg"></i>
+            <span class="text-[10px] font-bold mt-1">إيداع</span>
+        </button>
+        <button onclick="switchView('history')" data-tab="history" class="mobile-nav-btn flex flex-col items-center py-1 px-2 text-slate-400">
+            <i class="fa-solid fa-clock-rotate-left text-lg"></i>
+            <span class="text-[10px] font-bold mt-1">السجل</span>
+        </button>
+        <button onclick="switchView('goals')" data-tab="goals" class="mobile-nav-btn flex flex-col items-center py-1 px-2 text-slate-400">
+            <i class="fa-solid fa-bullseye text-lg"></i>
+            <span class="text-[10px] font-bold mt-1">الأهداف</span>
+        </button>
+        <button onclick="switchView('settings')" data-tab="settings" class="mobile-nav-btn flex flex-col items-center py-1 px-2 text-slate-400">
+            <i class="fa-solid fa-gear text-lg"></i>
+            <span class="text-[10px] font-bold mt-1">المزيد</span>
+        </button>
+    </nav>
+
+    <!-- ========================================== -->
+    <!-- APPLICATION LOGIC & STATE MANAGEMENT (JS) -->
+    <!-- ========================================== -->
+    <script>
+        // State Store
+        const Store = {
+            transactions: [],
+            goals: [],
+            settings: {
+                currency: 'EGP',
+                theme: 'light'
+            },
+
+            init() {
+                const storedTrans = localStorage.getItem('dst_transactions');
+                const storedGoals = localStorage.getItem('dst_goals');
+                const storedSettings = localStorage.getItem('dst_settings');
+
+                if (storedTrans) this.transactions = JSON.parse(storedTrans);
+                if (storedGoals) this.goals = JSON.parse(storedGoals);
+                if (storedSettings) this.settings = { ...this.settings, ...JSON.parse(storedSettings) };
+
+                // Apply initial theme
+                if (this.settings.theme === 'dark' || (!('dst_settings' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                    document.documentElement.classList.add('dark');
+                    this.settings.theme = 'dark';
+                } else {
+                    document.documentElement.classList.remove('dark');
+                    this.settings.theme = 'light';
+                }
+
+                this.saveSettings();
+            },
+
+            saveTransactions() {
+                localStorage.setItem('dst_transactions', JSON.stringify(this.transactions));
+            },
+
+            saveGoals() {
+                localStorage.setItem('dst_goals', JSON.stringify(this.goals));
+            },
+
+            saveSettings() {
+                localStorage.setItem('dst_settings', JSON.stringify(this.settings));
+            }
+        };
+
+        // UI Management
+        let evolutionChartInstance = null;
+        let monthlyChartInstance = null;
+        let categoryChartInstance = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            Store.init();
+            
+            // Set default date for daily savings input to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('save-date').value = today;
+            document.getElementById('goal-start-date').value = today;
+            
+            // Populate Currency in UI
+            applyCurrencyUI();
+
+            // Setup listeners
+            setupEventListeners();
+
+            // Initial Render
+            refreshAllData();
+        });
+
+        function setupEventListeners() {
+            // New Transaction Form Submit
+            document.getElementById('savings-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const amount = parseFloat(document.getElementById('save-amount').value);
+                const date = document.getElementById('save-date').value;
+                const category = document.getElementById('save-category').value;
+                const goalId = document.getElementById('save-goal-id').value;
+                const desc = document.getElementById('save-desc').value.trim();
+
+                if (isNaN(amount) || amount < 0) {
+                    showToast('يرجى إدخال مبلغ صحيح (0 أو أكبر)', 'error');
+                    return;
+                }
+
+                const newTx = {
+                    id: 'tx_' + Date.now(),
+                    amount: amount,
+                    date: date,
+                    category: category,
+                    goalId: goalId || null,
+                    description: desc || 'ادخار يومي',
+                    createdAt: new Date().toISOString()
+                };
+
+                Store.transactions.push(newTx);
+                Store.saveTransactions();
+
+                // If linked to goal, update goal saved amount
+                if (goalId && amount > 0) {
+                    const goal = Store.goals.find(g => g.id === goalId);
+                    if (goal) {
+                        goal.saved = (parseFloat(goal.saved) || 0) + amount;
+                        Store.saveGoals();
+                    }
+                }
+
+                // Reset form & Notify
+                document.getElementById('save-amount').value = '';
+                document.getElementById('save-desc').value = '';
+                
+                // Trigger celebratory confetti if saving is above zero
+                if (amount > 0) {
+                    confetti({
+                        particleCount: 50,
+                        spread: 60,
+                        origin: { y: 0.8 }
+                    });
+                }
+
+                showToast('تم تسجيل عملية الادخار بنجاح!', 'success');
+                refreshAllData();
+                switchView('dashboard');
+            });
+
+            // Edit Form Submit
+            document.getElementById('edit-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const id = document.getElementById('edit-id').value;
+                const amount = parseFloat(document.getElementById('edit-amount').value);
+                const date = document.getElementById('edit-date').value;
+                const category = document.getElementById('edit-category').value;
+                const desc = document.getElementById('edit-desc').value.trim();
+
+                if (isNaN(amount) || amount < 0) {
+                    showToast('المبلغ غير صالح', 'error');
+                    return;
+                }
+
+                const txIndex = Store.transactions.findIndex(t => t.id === id);
+                if (txIndex !== -1) {
+                    Store.transactions[txIndex].amount = amount;
+                    Store.transactions[txIndex].date = date;
+                    Store.transactions[txIndex].category = category;
+                    Store.transactions[txIndex].description = desc;
+                    Store.saveTransactions();
+                    
+                    showToast('تم تعديل العملية بنجاح', 'success');
+                    closeEditModal();
+                    refreshAllData();
+                }
+            });
+
+            // Goal Form Submit
+            document.getElementById('goal-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const name = document.getElementById('goal-name').value.trim();
+                const target = parseFloat(document.getElementById('goal-target').value);
+                const saved = parseFloat(document.getElementById('goal-saved').value) || 0;
+                const startDate = document.getElementById('goal-start-date').value;
+                const targetDate = document.getElementById('goal-target-date').value;
+                const icon = document.getElementById('goal-icon').value;
+
+                if (!name || isNaN(target) || target <= 0) {
+                    showToast('يرجى التأكد من كتابة اسم وهدف مالي صالح', 'error');
+                    return;
+                }
+
+                const newGoal = {
+                    id: 'goal_' + Date.now(),
+                    name: name,
+                    target: target,
+                    saved: saved,
+                    startDate: startDate,
+                    targetDate: targetDate,
+                    icon: icon
+                };
+
+                Store.goals.push(newGoal);
+                Store.saveGoals();
+
+                document.getElementById('goal-form').reset();
+                closeGoalModal();
+                showToast('تمت إضافة الهدف بنجاح', 'success');
+                refreshAllData();
+            });
+
+            // Search and Filter Listeners for History
+            document.getElementById('history-search').addEventListener('input', renderHistory);
+            document.getElementById('history-date-filter').addEventListener('change', renderHistory);
+            document.getElementById('history-cat-filter').addEventListener('change', renderHistory);
+        }
+
+        // View Navigation Router
+        function switchView(viewName) {
+            const views = ['dashboard', 'savings', 'history', 'goals', 'statistics', 'calculator', 'settings'];
+            views.forEach(v => {
+                const el = document.getElementById(`view-${v}`);
+                if (el) el.classList.add('hidden');
+            });
+
+            const activeView = document.getElementById(`view-${viewName}`);
+            if (activeView) activeView.classList.remove('hidden');
+
+            // Update Page Title
+            const titles = {
+                dashboard: 'لوحة التحكم',
+                savings: 'تسجيل مدخرات يومية',
+                history: 'سجل المعاملات والمدخرات',
+                goals: 'الأهداف المالية المخططة',
+                statistics: 'الإحصائيات والتقارير',
+                calculator: 'حاسبة الادخار الذكية',
+                settings: 'الإعدادات العامة'
+            };
+            document.getElementById('page-title').innerText = titles[viewName] || 'مُدّخِــر';
+
+            // Update Desktop Nav Styling
+            document.querySelectorAll('#desktop-nav .nav-btn').forEach(btn => {
+                if (btn.dataset.tab === viewName) {
+                    btn.className = "nav-btn w-full flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-sm transition-all text-primary-700 bg-primary-50 dark:bg-primary-950/60 dark:text-primary-400";
+                } else {
+                    btn.className = "nav-btn w-full flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-sm transition-all text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700/50";
+                }
+            });
+
+            // Update Mobile Nav Styling
+            document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+                if (btn.dataset.tab === viewName) {
+                    btn.className = "mobile-nav-btn flex flex-col items-center py-1 px-2 text-primary-600 dark:text-primary-400";
+                } else {
+                    btn.className = "mobile-nav-btn flex flex-col items-center py-1 px-2 text-slate-400";
+                }
+            });
+
+            // Refresh specific components if needed
+            if (viewName === 'statistics') {
+                renderStats();
+            } else if (viewName === 'dashboard') {
+                renderDashboardCharts();
+            }
+        }
+
+        // Formatting Helper
+        function formatMoney(amount) {
+            return new Intl.NumberFormat('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(amount || 0);
+        }
+
+        function applyCurrencyUI() {
+            const curr = Store.settings.currency || 'EGP';
+            document.querySelectorAll('.currency-label').forEach(el => el.innerText = curr);
+            document.getElementById('dash-total-currency').innerText = curr;
+            document.getElementById('aside-currency').innerText = curr;
+            document.getElementById('setting-currency').value = curr;
+        }
+
+        function changeCurrency(val) {
+            Store.settings.currency = val;
+            Store.saveSettings();
+            applyCurrencyUI();
+            refreshAllData();
+            showToast(`تم تغيير العملة إلى ${val}`, 'info');
+        }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            Store.settings.theme = isDark ? 'dark' : 'light';
+            Store.saveSettings();
+            
+            // Re-render charts with correct grid/text theme colors
+            renderDashboardCharts();
+            if (!document.getElementById('view-statistics').classList.contains('hidden')) {
+                renderStats();
+            }
+        }
+
+        // Refresh Whole UI Data
+        function refreshAllData() {
+            updateDashboardMetrics();
+            renderDashboardCharts();
+            renderDashboardLists();
+            renderHistory();
+            renderGoals();
+            populateGoalSelects();
+        }
+
+        // 1. Dashboard Logic
+        function updateDashboardMetrics() {
+            const txs = Store.transactions;
+            const now = new Date();
+            const todayStr = now.toISOString().split('T')[0];
+
+            // 7 days ago timestamp
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(now.getDate() - 7);
+
+            // Month start
+            const currentMonth = now.getMonth();
+            const currentYear = now.getFullYear();
+
+            let total = 0;
+            let todayTotal = 0;
+            let weekTotal = 0;
+            let monthTotal = 0;
+            const savingDaysSet = new Set();
+
+            txs.forEach(t => {
+                const amt = parseFloat(t.amount) || 0;
+                total += amt;
+
+                const tDate = new Date(t.date);
+                if (t.date === todayStr) {
+                    todayTotal += amt;
+                }
+                if (tDate >= sevenDaysAgo && tDate <= now) {
+                    weekTotal += amt;
+                }
+                if (tDate.getMonth() === currentMonth && tDate.getFullYear() === currentYear) {
+                    monthTotal += amt;
+                }
+                if (amt > 0) {
+                    savingDaysSet.add(t.date);
+                }
+            });
+
+            const daysCount = savingDaysSet.size;
+            const avgDaily = daysCount > 0 ? (total / daysCount) : 0;
+
+            // Target goals summary
+            let totalGoalTarget = 0;
+            let totalGoalSaved = 0;
+            Store.goals.forEach(g => {
+                totalGoalTarget += parseFloat(g.target) || 0;
+                totalGoalSaved += parseFloat(g.saved) || 0;
+            });
+            const goalPct = totalGoalTarget > 0 ? Math.min(100, Math.round((totalGoalSaved / totalGoalTarget) * 100)) : 0;
+
+            // Populate DOM
+            document.getElementById('dash-total').innerText = formatMoney(total);
+            document.getElementById('dash-today').innerText = formatMoney(todayTotal);
+            document.getElementById('dash-week').innerText = formatMoney(weekTotal);
+            document.getElementById('dash-month').innerText = formatMoney(monthTotal);
+            document.getElementById('dash-avg').innerText = formatMoney(avgDaily);
+            document.getElementById('dash-days').innerText = daysCount;
+            document.getElementById('dash-goal-pct').innerText = `${goalPct}%`;
+        }
+
+        function renderDashboardLists() {
+            // Recent Transactions (top 5)
+            const recentContainer = document.getElementById('dash-recent-list');
+            const sorted = [...Store.transactions].sort((a,b) => new Date(b.date) - new Date(a.date));
+            const recent5 = sorted.slice(0, 5);
+
+            if (recent5.length === 0) {
+                recentContainer.innerHTML = `<p class="text-xs text-slate-400 py-3 text-center">لا توجد عمليات بعد</p>`;
+            } else {
+                recentContainer.innerHTML = recent5.map(t => `
+                    <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/30">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-primary-600 flex items-center justify-center text-xs">
+                                <i class="fa-solid fa-coins"></i>
+                            </div>
+                            <div>
+                                <h6 class="text-xs font-bold text-slate-800 dark:text-slate-100">${escapeHtml(t.description)}</h6>
+                                <span class="text-[10px] text-slate-400">${t.date} • ${t.category}</span>
+                            </div>
+                        </div>
+                        <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400">+${formatMoney(t.amount)} ${Store.settings.currency}</span>
+                    </div>
+                `).join('');
+            }
+
+            // Dashboard Goals preview (top 3)
+            const goalsContainer = document.getElementById('dash-goals-list');
+            if (Store.goals.length === 0) {
+                goalsContainer.innerHTML = `<p class="text-xs text-slate-400 py-3 text-center">لم تقم بإضافة أي أهداف حتى الآن</p>`;
+            } else {
+                goalsContainer.innerHTML = Store.goals.slice(0, 3).map(g => {
+                    const pct = Math.min(100, Math.round(((parseFloat(g.saved) || 0) / (parseFloat(g.target) || 1)) * 100));
+                    return `
+                        <div>
+                            <div class="flex justify-between items-center text-xs mb-1">
+                                <span class="font-bold flex items-center gap-2">
+                                    <i class="fa-solid ${g.icon || 'fa-bullseye'} text-primary-600"></i>
+                                    ${escapeHtml(g.name)}
+                                </span>
+                                <span class="font-semibold text-slate-400">${pct}% (${formatMoney(g.saved)} / ${formatMoney(g.target)})</span>
+                            </div>
+                            <div class="w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+                                <div class="bg-primary-600 h-full rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        function renderDashboardCharts() {
+            const ctx = document.getElementById('evolutionChart');
+            if (!ctx) return;
+
+            // Group transactions by date
+            const grouped = {};
+            Store.transactions.forEach(t => {
+                grouped[t.date] = (grouped[t.date] || 0) + (parseFloat(t.amount) || 0);
+            });
+
+            // Sort dates
+            const sortedDates = Object.keys(grouped).sort().slice(-14); // last 14 active days
+            const labels = sortedDates.length ? sortedDates : ['لا توجد بيانات'];
+            const data = sortedDates.length ? sortedDates.map(d => grouped[d]) : [0];
+
+            if (evolutionChartInstance) {
+                evolutionChartInstance.destroy();
+            }
+
+            const isDark = document.documentElement.classList.contains('dark');
+            const gridColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)';
+            const textColor = isDark ? '#94a3b8' : '#64748b';
+
+            evolutionChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: `الادخار (${Store.settings.currency})`,
+                        data: data,
+                        borderColor: '#059669',
+                        backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                        fill: true,
+                        tension: 0.35,
+                        pointBackgroundColor: '#059669',
+                        pointRadius: 4,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: gridColor },
+                            ticks: { color: textColor, font: { family: 'Cairo' } }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: textColor, font: { family: 'Cairo' } }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 2. History Logic
+        function renderHistory() {
+            const tbody = document.getElementById('history-table-body');
+            const emptyEl = document.getElementById('history-empty');
+            const search = document.getElementById('history-search').value.toLowerCase().trim();
+            const dateFilter = document.getElementById('history-date-filter').value;
+            const catFilter = document.getElementById('history-cat-filter').value;
+
+            let filtered = [...Store.transactions].filter(t => {
+                const matchSearch = (t.description || '').toLowerCase().includes(search) || (t.category || '').toLowerCase().includes(search);
+                const matchDate = !dateFilter || t.date === dateFilter;
+                const matchCat = catFilter === 'all' || t.category === catFilter;
+                return matchSearch && matchDate && matchCat;
+            });
+
+            // Sort newest first
+            filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '';
+                emptyEl.classList.remove('hidden');
+                return;
+            }
+
+            emptyEl.classList.add('hidden');
+            tbody.innerHTML = filtered.map(t => `
+                <tr class="hover:bg-slate-50/60 dark:hover:bg-slate-700/20 transition">
+                    <td class="p-3.5 font-medium text-xs">${t.date}</td>
+                    <td class="p-3.5 font-bold text-xs text-primary-600 dark:text-primary-400">${formatMoney(t.amount)} ${Store.settings.currency}</td>
+                    <td class="p-3.5 text-xs"><span class="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium">${escapeHtml(t.category)}</span></td>
+                    <td class="p-3.5 text-xs text-slate-600 dark:text-slate-300 max-w-xs truncate">${escapeHtml(t.description)}</td>
+                    <td class="p-3.5 text-center">
+                        <div class="flex items-center justify-center gap-2">
+                            <button onclick="openEditModal('${t.id}')" class="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg text-xs" title="تعديل"><i class="fa-solid fa-pen-to-square"></i></button>
+                            <button onclick="promptDeleteTransaction('${t.id}')" class="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg text-xs" title="حذف"><i class="fa-solid fa-trash"></i></button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function clearHistoryFilters() {
+            document.getElementById('history-search').value = '';
+            document.getElementById('history-date-filter').value = '';
+            document.getElementById('history-cat-filter').value = 'all';
+            renderHistory();
+        }
+
+        function openEditModal(id) {
+            const tx = Store.transactions.find(t => t.id === id);
+            if (!tx) return;
+
+            document.getElementById('edit-id').value = tx.id;
+            document.getElementById('edit-amount').value = tx.amount;
+            document.getElementById('edit-date').value = tx.date;
+            document.getElementById('edit-category').value = tx.category || 'عام';
+            document.getElementById('edit-desc').value = tx.description || '';
+
+            document.getElementById('edit-modal').classList.remove('hidden');
+        }
+
+        function closeEditModal() {
+            document.getElementById('edit-modal').classList.add('hidden');
+        }
+
+        function promptDeleteTransaction(id) {
+            showConfirmModal('حذف العملية', 'هل أنت متأكد من حذف هذه المعاملة من سجلك؟', () => {
+                Store.transactions = Store.transactions.filter(t => t.id !== id);
+                Store.saveTransactions();
+                showToast('تم حذف العملية بنجاح', 'info');
+                refreshAllData();
+            });
+        }
+
+        // 3. Goals Logic
+        function renderGoals() {
+            const grid = document.getElementById('goals-grid');
+            const empty = document.getElementById('goals-empty');
+
+            if (Store.goals.length === 0) {
+                grid.innerHTML = '';
+                empty.classList.remove('hidden');
+                return;
+            }
+
+            empty.classList.add('hidden');
+            grid.innerHTML = Store.goals.map(g => {
+                const target = parseFloat(g.target) || 1;
+                const saved = parseFloat(g.saved) || 0;
+                const pct = Math.min(100, Math.round((saved / target) * 100));
+                const remaining = Math.max(0, target - saved);
+
+                return `
+                    <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="w-10 h-10 rounded-xl bg-primary-50 dark:bg-primary-950/60 text-primary-600 flex items-center justify-center text-lg">
+                                    <i class="fa-solid ${g.icon || 'fa-bullseye'}"></i>
+                                </div>
+                                <div class="flex gap-1">
+                                    <button onclick="promptDeleteGoal('${g.id}')" class="text-slate-400 hover:text-red-500 p-1 text-xs" title="حذف الهدف"><i class="fa-solid fa-trash"></i></button>
+                                </div>
+                            </div>
+                            <h4 class="font-bold text-base text-slate-800 dark:text-white mb-1">${escapeHtml(g.name)}</h4>
+                            <p class="text-xs text-slate-400 mb-4">المستهدف: ${formatMoney(target)} ${Store.settings.currency}</p>
+                            
+                            <!-- Progress -->
+                            <div class="space-y-1.5 mb-4">
+                                <div class="flex justify-between text-xs font-semibold">
+                                    <span class="text-primary-600 dark:text-primary-400 font-bold">${pct}%</span>
+                                    <span class="text-slate-400">متبقي: ${formatMoney(remaining)}</span>
+                                </div>
+                                <div class="w-full bg-slate-100 dark:bg-slate-700 h-2.5 rounded-full overflow-hidden">
+                                    <div class="bg-primary-600 h-full rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="pt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[11px] text-slate-400">
+                            <span><i class="fa-regular fa-calendar-check ml-1"></i> الموعد: ${g.targetDate || 'غير محدد'}</span>
+                            <button onclick="quickAddGoalSaved('${g.id}')" class="text-xs font-bold text-primary-600 dark:text-primary-400 hover:underline">زيادة الرصيد +</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function openNewGoalModal() {
+            document.getElementById('goal-modal').classList.remove('hidden');
+        }
+
+        function closeGoalModal() {
+            document.getElementById('goal-modal').classList.add('hidden');
+        }
+
+        function quickAddGoalSaved(goalId) {
+            const goal = Store.goals.find(g => g.id === goalId);
+            if (!goal) return;
+            const amtStr = prompt(`أدخل المبلغ المراد إضافته لهدف "${goal.name}":`);
+            const amt = parseFloat(amtStr);
+            if (!isNaN(amt) && amt > 0) {
+                goal.saved = (parseFloat(goal.saved) || 0) + amt;
+                Store.saveGoals();
+                refreshAllData();
+                showToast(`تم تحديث رصيد هدف "${goal.name}"`, 'success');
+            }
+        }
+
+        function promptDeleteGoal(id) {
+            showConfirmModal('حذف الهدف المالي', 'هل أنت متأكد من رغبتك في حذف هذا الهدف؟', () => {
+                Store.goals = Store.goals.filter(g => g.id !== id);
+                Store.saveGoals();
+                showToast('تم حذف الهدف بنجاح', 'info');
+                refreshAllData();
+            });
+        }
+
+        function populateGoalSelects() {
+            const sel = document.getElementById('save-goal-id');
+            sel.innerHTML = '<option value="">-- بدون ربط بهدف --</option>' + Store.goals.map(g => `
+                <option value="${g.id}">${escapeHtml(g.name)}</option>
+            `).join('');
+        }
+
+        // 4. Statistics Logic
+        function renderStats() {
+            const range = document.getElementById('stat-range').value;
+            const now = new Date();
+            let filtered = Store.transactions;
+
+            if (range === 'this_month') {
+                const m = now.getMonth();
+                const y = now.getFullYear();
+                filtered = filtered.filter(t => {
+                    const d = new Date(t.date);
+                    return d.getMonth() === m && d.getFullYear() === y;
+                });
+            } else if (range === 'last_3_months') {
+                const threeMonthsAgo = new Date();
+                threeMonthsAgo.setMonth(now.getMonth() - 3);
+                filtered = filtered.filter(t => new Date(t.date) >= threeMonthsAgo);
+            } else if (range === 'this_year') {
+                const y = now.getFullYear();
+                filtered = filtered.filter(t => new Date(t.date).getFullYear() === y);
+            }
+
+            // Calc KPIs
+            let total = 0;
+            const dailyGroup = {};
+            const categoryGroup = {};
+
+            filtered.forEach(t => {
+                const amt = parseFloat(t.amount) || 0;
+                total += amt;
+                dailyGroup[t.date] = (dailyGroup[t.date] || 0) + amt;
+                categoryGroup[t.category] = (categoryGroup[t.category] || 0) + amt;
+            });
+
+            const dayValues = Object.values(dailyGroup).filter(v => v > 0);
+            const maxDay = dayValues.length ? Math.max(...dayValues) : 0;
+            const minDay = dayValues.length ? Math.min(...dayValues) : 0;
+            const avgDay = dayValues.length ? (total / dayValues.length) : 0;
+
+            document.getElementById('stat-period-total').innerText = `${formatMoney(total)} ${Store.settings.currency}`;
+            document.getElementById('stat-max-day').innerText = `${formatMoney(maxDay)} ${Store.settings.currency}`;
+            document.getElementById('stat-min-day').innerText = `${formatMoney(minDay)} ${Store.settings.currency}`;
+            document.getElementById('stat-avg-day').innerText = `${formatMoney(avgDay)} ${Store.settings.currency}`;
+
+            // Render Charts for Stats
+            renderMonthlyChart();
+            renderCategoryChart(categoryGroup);
+        }
+
+        function renderMonthlyChart() {
+            const ctx = document.getElementById('monthlyChart');
+            if (!ctx) return;
+
+            // Group by year-month
+            const months = {};
+            Store.transactions.forEach(t => {
+                const ym = t.date.substring(0, 7); // 'YYYY-MM'
+                months[ym] = (months[ym] || 0) + (parseFloat(t.amount) || 0);
+            });
+
+            const sortedMonths = Object.keys(months).sort().slice(-6); // last 6 months
+            const labels = sortedMonths.length ? sortedMonths : ['لا توجد شهور مسجلة'];
+            const data = sortedMonths.length ? sortedMonths.map(m => months[m]) : [0];
+
+            if (monthlyChartInstance) monthlyChartInstance.destroy();
+
+            const isDark = document.documentElement.classList.contains('dark');
+            const gridColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)';
+            const textColor = isDark ? '#94a3b8' : '#64748b';
+
+            monthlyChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: `إجمالي الشهر (${Store.settings.currency})`,
+                        data: data,
+                        backgroundColor: '#10b981',
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: gridColor },
+                            ticks: { color: textColor, font: { family: 'Cairo' } }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: textColor, font: { family: 'Cairo' } }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderCategoryChart(categoryGroup) {
+            const ctx = document.getElementById('categoryChart');
+            if (!ctx) return;
+
+            const labels = Object.keys(categoryGroup);
+            const data = Object.values(categoryGroup);
+
+            if (categoryChartInstance) categoryChartInstance.destroy();
+
+            if (labels.length === 0) {
+                labels.push('لا توجد بيانات');
+                data.push(1);
+            }
+
+            categoryChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: ['#059669', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#64748b'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { font: { family: 'Cairo' }, boxWidth: 12 }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 5. Calculator Logic
+        function setCalcMode(mode) {
+            const btnDays = document.getElementById('btn-calc-days');
+            const btnAmount = document.getElementById('btn-calc-amount');
+            const modeDays = document.getElementById('calc-mode-days');
+            const modeAmount = document.getElementById('calc-mode-amount');
+
+            if (mode === 'days') {
+                btnDays.className = "flex-1 py-2 rounded-lg text-xs font-bold transition bg-white dark:bg-slate-800 shadow-sm text-primary-600 dark:text-primary-400";
+                btnAmount.className = "flex-1 py-2 rounded-lg text-xs font-bold transition text-slate-500 hover:text-slate-800 dark:text-slate-400";
+                modeDays.classList.remove('hidden');
+                modeAmount.classList.add('hidden');
+            } else {
+                btnAmount.className = "flex-1 py-2 rounded-lg text-xs font-bold transition bg-white dark:bg-slate-800 shadow-sm text-primary-600 dark:text-primary-400";
+                btnDays.className = "flex-1 py-2 rounded-lg text-xs font-bold transition text-slate-500 hover:text-slate-800 dark:text-slate-400";
+                modeAmount.classList.remove('hidden');
+                modeDays.classList.add('hidden');
+            }
+        }
+
+        function runCalculatorA() {
+            const target = parseFloat(document.getElementById('calc-a-target').value);
+            const daily = parseFloat(document.getElementById('calc-a-daily').value);
+
+            if (isNaN(target) || isNaN(daily) || target <= 0 || daily <= 0) {
+                showToast('يرجى إدخال قيم موجبة صالحة في الحقول', 'error');
+                return;
+            }
+
+            const days = Math.ceil(target / daily);
+            const months = (days / 30).toFixed(1);
+
+            document.getElementById('calc-out-days').innerText = days;
+            document.getElementById('calc-out-months-note').innerText = `أي ما يعادل تقريباً ${months} شهر.`;
+            document.getElementById('calc-res-a').classList.remove('hidden');
+        }
+
+        function runCalculatorB() {
+            const target = parseFloat(document.getElementById('calc-b-target').value);
+            const days = parseFloat(document.getElementById('calc-b-days').value);
+
+            if (isNaN(target) || isNaN(days) || target <= 0 || days <= 0) {
+                showToast('يرجى إدخال قيم موجبة صالحة في الحقول', 'error');
+                return;
+            }
+
+            const daily = (target / days);
+            document.getElementById('calc-out-daily').innerText = formatMoney(daily);
+            document.getElementById('calc-res-b').classList.remove('hidden');
+        }
+
+        // 6. Settings, Backup & CSV Export
+        function exportToCSV() {
+            if (Store.transactions.length === 0) {
+                showToast('لا توجد بيانات متاحة للتصدير حالياً', 'error');
+                return;
+            }
+
+            let csvContent = "\uFEFF"; // UTF-8 BOM for Arabic support in Excel
+            csvContent += "المعرف,التاريخ,المبلغ,العملة,التصنيف,الوصف\n";
+
+            Store.transactions.forEach(t => {
+                const desc = `"${(t.description || '').replace(/"/g, '""')}"`;
+                const cat = `"${(t.category || '').replace(/"/g, '""')}"`;
+                csvContent += `${t.id},${t.date},${t.amount},${Store.settings.currency},${cat},${desc}\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `مدخراتي_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('تم تصدير ملف CSV بنجاح', 'success');
+        }
+
+        function exportBackupJSON() {
+            const backupData = {
+                version: '1.0',
+                date: new Date().toISOString(),
+                transactions: Store.transactions,
+                goals: Store.goals,
+                settings: Store.settings
+            };
+
+            const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `نسخة_احتياطية_مدخر_${new Date().toISOString().split('T')[0]}.json`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('تم تصدير النسخة الاحتياطية بنجاح', 'success');
+        }
+
+        function importBackupJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (data && Array.isArray(data.transactions)) {
+                        Store.transactions = data.transactions;
+                        Store.goals = Array.isArray(data.goals) ? data.goals : [];
+                        if (data.settings) Store.settings = { ...Store.settings, ...data.settings };
+
+                        Store.saveTransactions();
+                        Store.saveGoals();
+                        Store.saveSettings();
+
+                        applyCurrencyUI();
+                        refreshAllData();
+                        showToast('تمت استعادة البيانات بنجاح!', 'success');
+                    } else {
+                        throw new Error('Invalid structure');
+                    }
+                } catch (err) {
+                    showToast('الملف غير صالح أو تالف', 'error');
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        function confirmResetAll() {
+            showConfirmModal('مسح شامل لكافة البيانات', 'سيتم مسح جميع عمليات الادخار والأهداف المالية تماماً والبدء من جديد. هل أنت متأكد؟', () => {
+                Store.transactions = [];
+                Store.goals = [];
+                Store.saveTransactions();
+                Store.saveGoals();
+                refreshAllData();
+                showToast('تم مسح جميع البيانات', 'info');
+            });
+        }
+
+        // 7. Modals & Notifications Utilities
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const bgClass = type === 'success' ? 'bg-emerald-600 text-white' : (type === 'error' ? 'bg-red-600 text-white' : 'bg-slate-800 text-white');
+            const icon = type === 'success' ? 'fa-circle-check' : (type === 'error' ? 'fa-circle-xmark' : 'fa-circle-info');
+
+            toast.className = `${bgClass} pointer-events-auto px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-bold transition-all duration-300 transform translate-y-2 opacity-0`;
+            toast.innerHTML = `<i class="fa-solid ${icon} text-sm"></i> <span>${escapeHtml(message)}</span>`;
+
+            container.appendChild(toast);
+
+            // Animate In
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            // Animate Out & Remove
+            setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        let confirmCallback = null;
+        function showConfirmModal(title, msg, onConfirm) {
+            document.getElementById('confirm-title').innerText = title;
+            document.getElementById('confirm-msg').innerText = msg;
+            confirmCallback = onConfirm;
+            document.getElementById('confirm-modal').classList.remove('hidden');
+        }
+
+        document.getElementById('confirm-btn-yes').addEventListener('click', () => {
+            if (confirmCallback) confirmCallback();
+            document.getElementById('confirm-modal').classList.add('hidden');
+        });
+
+        document.getElementById('confirm-btn-no').addEventListener('click', () => {
+            document.getElementById('confirm-modal').classList.add('hidden');
+        });
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>"']/g, function(m) {
+                return {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                }[m];
+            });
+        }
+    </script>
+</body>
+</html>
